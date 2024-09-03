@@ -1,0 +1,220 @@
+####################################################################################
+-- Buscar personas que tenga cierta educacion superior (TC, TL, TE, UN, ES, MG, DOC)
+DELIMITER $$
+CREATE PROCEDURE buscarES(IN modalidad VARCHAR(15))
+BEGIN
+    DECLARE total_registros INT;
+
+    -- Contar el número de registros que coinciden con la modalidad
+    SELECT COUNT(*)
+    INTO total_registros
+    FROM educacionsuperior es
+    JOIN personanatural p ON p.idpersonanatural = es.PersonaNatural_idPersonaNatural
+    JOIN modalidadacademica m ON m.idmodalidadacademica = es.ModalidadAcademica_idModalidadAcademica
+    WHERE m.nombremodalidad = modalidad;
+
+    -- Verificar si existen registros
+    IF total_registros > 0 THEN
+        -- Mostrar los datos si existen registros
+        SELECT 
+            p.nombres, p.primerapellido, p.segundoapellido, 
+			es.nTarjeta, 
+            p.email, p.telefono, 
+            CASE
+				WHEN m.nombremodalidad = 'TC' THEN 'Técnica'
+				WHEN m.nombremodalidad = 'TL' THEN 'Tecnológica'
+				WHEN m.nombremodalidad = 'TE' THEN 'Tecnológica Especializada'
+				WHEN m.nombremodalidad = 'UN' THEN 'Universitaria'
+				WHEN m.nombremodalidad = 'ES' THEN 'Especialización'
+				WHEN m.nombremodalidad = 'MG' THEN 'Maestría o Magíster'
+				WHEN m.nombremodalidad = 'DOC' THEN 'Doctorado o PhD'
+				ELSE 'Desconocido'
+			END AS ModalidadAcademica,
+            es.tituloProfesional AS TituloProfesional 
+		FROM educacionsuperior es
+        JOIN personanatural p ON p.idpersonanatural = es.PersonaNatural_idPersonaNatural
+        JOIN modalidadacademica m ON m.idmodalidadacademica = es.ModalidadAcademica_idModalidadAcademica
+        WHERE m.nombremodalidad = modalidad;
+    ELSE
+        -- Mostrar mensaje si no existen registros
+        SELECT 'No existen registros en la base de datos para la modalidad proporcionada' AS mensaje;
+    END IF;
+END $$
+DELIMITER ;
+
+
+call buscarES("MG");
+###################################################################################
+-- Buscar personas que tengan experiencia en cierto cargo
+DELIMITER $$
+CREATE PROCEDURE buscarPCE(IN cargo VARCHAR(50))
+BEGIN
+    DECLARE total_registros INT;
+    -- Contar el número de registros que coinciden con el cargo
+    SELECT COUNT(*)
+    INTO total_registros
+    FROM experiencialaboral e
+    JOIN personanatural p ON p.idpersonanatural = e.PersonaNatural_idPersonaNatural
+    JOIN cargo c ON c.idcargo = e.Cargo_idCargo
+    WHERE c.tipocargo = cargo;
+    -- Verificar si existen registros
+    IF total_registros > 0 THEN
+        -- Mostrar los datos si existen registros
+        SELECT
+            p.nombres, p.primerapellido, p.segundoapellido,
+            e.Cargo_idCargo,
+            c.tipocargo,
+            CASE WHEN e.esvigente = 0 THEN 'Desempleado' ELSE 'Empleado' END AS Disponibilidad
+        FROM experiencialaboral e
+        JOIN personanatural p ON p.idpersonanatural = e.PersonaNatural_idPersonaNatural
+        JOIN cargo c ON c.idcargo = e.Cargo_idCargo
+        WHERE c.tipocargo = cargo;
+    ELSE
+        -- Mostrar mensaje si no existen registros
+        SELECT 'No existen registros en la base de datos para dicho cargo' AS mensaje;
+    END IF;
+END $$
+DELIMITER ;
+
+call buscarPCE("administrador de sistemas");
+
+######################################################################################## 
+-- buscar dependiendo los años de experiencia
+DELIMITER $$
+
+CREATE PROCEDURE spAnioMesesExperiencia(IN anios_solicitados INT, IN meses_solicitados INT)
+BEGIN
+    SELECT p.nombres, p.primerApellido, p.segundoApellido, p.telefono, p.email,
+           t.años, t.meses, (t.años * 12 + t.meses) AS TotalMesesExperiencia
+    FROM personanatural p
+    INNER JOIN tiempoexperiencia t ON p.idPersonaNatural = t.PersonaNatural_idPersonaNatural
+    WHERE t.años >= anios_solicitados 
+      AND t.meses >= meses_solicitados;
+END $$
+
+DELIMITER ;
+
+CALL spAnioMesesExperiencia(3,7);
+#########################################################################################
+-- Traer personas por su ubicacion municipio
+
+DELIMITER $$
+CREATE PROCEDURE spMunicipio(IN municipio_solicitado VARCHAR(11))
+BEGIN
+	select p.nombres, p.primerApellido, p.segundoApellido, p.telefono, email
+	from personanatural p inner join municipio m where m.nombreMunicipio = municipio_solicitado 
+	and m.idMunicipio = p.Municipio_idMunicipio;
+END $$
+
+DELIMITER ;
+
+CALL spMunicipio('Bogotá');
+###########################################################################################
+
+-- buscar idiomas de las personas con el idioma
+DELIMITER $$
+
+CREATE PROCEDURE buscarPorIdioma(IN idioma VARCHAR(45))
+BEGIN
+
+SELECT pn.idPersonaNatural, pn.primerApellido, pn.nombres, pn.nacionalidad, i.nombreIdioma, nh.nivel AS nivelHabla, ne.nivel AS nivelEscribe, nl.nivel AS nivelLee
+FROM  idiomapersona ip INNER JOIN personanatural pn ON ip.PersonaNatural_idPersonaNatural = pn.idPersonaNatural
+INNER JOIN idioma i ON ip.Idioma_idIdioma = i.idIdioma
+INNER JOIN nivel nh ON ip.Nivel_idHabla = nh.idNivel
+INNER JOIN nivel ne ON ip.Nivel_idEscribe = ne.idNivel
+INNER JOIN nivel nl ON ip.Nivel_idLee = nl.idNivel
+WHERE i.nombreIdioma = idioma;
+END $$
+
+DELIMITER ;
+
+CALL buscarPorIdioma("inglés");
+-- 'Aleman'
+-- 'Francés'
+
+#############################################################################################
+
+
+DELIMITER $$
+
+CREATE PROCEDURE InsertarExperienciaLaboral(IN id_persona INT)
+BEGIN
+    -- Declarar variables
+    DECLARE puntador CHAR(2);
+    DECLARE ID INT;
+    DECLARE CARGO VARCHAR(30);
+    DECLARE meses INT;
+    DECLARE años INT;
+    DECLARE done INT DEFAULT FALSE;
+    DECLARE v_fechaIngreso DATE;
+    DECLARE v_fechaRetiro DATE;
+    DECLARE v_sector CHAR(2);
+
+    -- Declarar el cursor para recorrer los registros
+    DECLARE cur CURSOR FOR
+        SELECT sector, fechaIngreso, fechaRetiro
+        FROM experiencialaboral 
+        WHERE PersonaNatural_idPersonaNatural = id_persona;
+        
+    -- Declarar el manejador para la condición de fin del cursor
+    DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+
+    -- Abrir el cursor
+    OPEN cur;
+
+    -- Bucle para recorrer los registros
+    read_loop: LOOP
+        FETCH cur INTO v_sector, v_fechaIngreso, v_fechaRetiro;
+        IF done THEN
+            LEAVE read_loop;
+        END IF;
+
+        -- Asignar el cargo según el sector
+        IF v_sector = 'PU' THEN 
+            SET CARGO = 'SERVIDOR PÚBLICO';
+        ELSEIF v_sector = 'PR' THEN
+            SET CARGO = 'EMPLEADO DEL SECTOR PRIVADO';
+        ELSE
+            SET CARGO = 'TRABAJADOR INDEPENDIENTE';
+        END IF;
+
+        -- Verificar si el cargo existe en la tabla tiposector y obtener el ID
+        SET ID = (SELECT idtipoSector 
+                  FROM tiposector 
+                  WHERE nombreTipoSector = CARGO LIMIT 1);
+                  
+        -- Calcular los años y meses de experiencia
+        SET años = TIMESTAMPDIFF(YEAR, v_fechaIngreso, v_fechaRetiro);
+        SET meses = TIMESTAMPDIFF(MONTH, v_fechaIngreso, v_fechaRetiro) % 12;
+
+        -- Verificar si ya existe un registro en tiempoexperiencia con los mismos datos
+        IF NOT EXISTS (
+            SELECT 1 
+            FROM tiempoexperiencia 
+            WHERE años = años
+              AND meses = meses
+              AND tipoServidor_idtipoServidor = ID
+              AND PersonaNatural_idPersonaNatural = id_persona
+        ) THEN
+            -- Insertar el registro si no existe
+            INSERT INTO tiempoexperiencia (años, meses, tipoServidor_idtipoServidor, PersonaNatural_idPersonaNatural)
+            VALUES (años, meses, ID, id_persona);
+        END IF;
+
+    END LOOP;
+    SELECT CONCAT('El tiempo de experiencia laboral para ', nombres, ' ', primerApellido, ' ',segundoApellido,
+        ' ha sido agregado correctamente!') AS mensaje from personanatural where idPersonaNatural = id_persona;
+        
+	SELECT * from tiempoexperiencia WHERE PersonaNatural_idPersonaNatural = id_persona;
+
+    -- Cerrar el cursor
+    CLOSE cur;
+
+END $$
+
+DELIMITER ;
+
+CALL InsertarExperienciaLaboral(2);
+CALL InsertarExperienciaLaboral(3);
+CALL InsertarExperienciaLaboral(4);
+CALL InsertarExperienciaLaboral(5);

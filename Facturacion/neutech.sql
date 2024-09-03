@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Servidor: localhost:3308
--- Tiempo de generaci贸n: 30-08-2024 a las 10:15:20
+-- Tiempo de generaci贸n: 03-09-2024 a las 04:11:13
 -- Versi贸n del servidor: 10.4.28-MariaDB
 -- Versi贸n de PHP: 8.2.4
 
@@ -12,6 +12,10 @@ START TRANSACTION;
 SET time_zone = "+00:00";
 
 
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8mb4 */;
 
 --
 -- Base de datos: `neutech`
@@ -23,58 +27,146 @@ DELIMITER $$
 --
 -- Procedimientos
 --
-DROP PROCEDURE IF EXISTS `comprarF`$$
-CREATE DEFINER=`root`@`localhost` PROCEDURE `comprarF` (IN `documento` VARCHAR(15), IN `idProducto` INT, IN `cantidad` INT, IN `fecha` DATE)   BEGIN
+DROP PROCEDURE IF EXISTS `comprarProducto`$$
+CREATE DEFINER=`root`@`localhost` PROCEDURE `comprarProducto` (IN `documento` VARCHAR(15), IN `p_idProducto` INT, IN `p_cantidad` INT)   BEGIN
+    DECLARE cantidadQH INT;
+    DECLARE factura_id INT;
 
     
-    IF EXISTS (SELECT 1 FROM Factura WHERE Cliente_idCliente = (SELECT idCliente FROM Cliente WHERE
-cedula = documento LIMIT 1) AND fecha = fecha LIMIT 1) THEN
-INSERT INTO detalle(cantidad,precio,Factura_idFactura,Producto_idProducto) VALUES 
-(cantidad,(SELECT precio * cantidad FROM Producto WHERE idProducto = idProducto LIMIT 1),
-(SELECT idFactura FROM Factura WHERE Cliente_idCliente = (SELECT idCliente FROM Cliente WHERE
-cedula = documento LIMIT 1)),idProducto);
+    SELECT stock INTO cantidadQH 
+    FROM producto 
+    WHERE idProducto = p_idProducto;
+
+    
+    IF cantidadQH >= p_cantidad AND p_cantidad > 0 THEN
 
         
-        SELECT 'Compra realizada exitosamente' AS mensaje;
+        IF EXISTS (SELECT 1 FROM Factura WHERE Cliente_idCliente = (SELECT idCliente FROM Cliente 
+   WHERE cedula = documento LIMIT 1) AND fecha = CURDATE()) THEN
 
-UPDATE producto SET stock = stock - cantidad WHERE producto.idProducto = idProducto LIMIT 1;
-    ELSE
+            INSERT INTO detalle(cantidad, precio, Factura_idFactura, Producto_idProducto) 
+            VALUES (p_cantidad, (SELECT precio * p_cantidad FROM Producto WHERE idProducto = p_idProducto 
+LIMIT 1), (SELECT idFactura FROM Factura WHERE Cliente_idCliente = 
+                    (SELECT idCliente FROM Cliente WHERE cedula = documento) 
+                    AND fecha = CURDATE()),p_idProducto
+            );
+
+            
+            SELECT 'La factura con el ID proporcionado ya existe.' AS mensaje;
+
+            
+            UPDATE producto 
+            SET stock = stock - p_cantidad 
+            WHERE producto.idProducto = p_idProducto 
+            LIMIT 1;
+
+
+        ELSE
+            
+            INSERT INTO Factura (fecha, Cliente_idCliente)
+            VALUES (CURDATE(), (SELECT idCliente FROM Cliente WHERE cedula = documento LIMIT 1));
+
+    SET factura_id = LAST_INSERT_ID();
+            
+            SELECT CONCAT(
+                'Su factura ha sido creada exitosamente. ', 
+                'Consulte la informaci b爏ica de su factura a continuaci: ', 
+                'Numero factura: ', factura_id
+            ) AS mensaje;
+
+            
+            INSERT INTO detalle(cantidad, precio, Factura_idFactura, Producto_idProducto) 
+            VALUES (p_cantidad, (SELECT precio * p_cantidad FROM Producto WHERE idProducto = p_idProducto LIMIT 1),
+                (SELECT idFactura FROM Factura WHERE Cliente_idCliente = 
+                (SELECT idCliente FROM Cliente WHERE cedula = documento) AND fecha = CURDATE()),p_idProducto
+            );
+
+            
+            UPDATE producto 
+            SET stock = stock - p_cantidad 
+            WHERE producto.idProducto = p_idProducto 
+            LIMIT 1;
+
+        END IF;
+
+    ELSE 
         
-        INSERT INTO Factura (fecha,Cliente_idCliente)
-        VALUES (fecha, (SELECT idCliente FROM Cliente WHERE
-cedula = documento LIMIT 1));
-        SELECT 'Factura creada exitosamente.' AS mensaje;
-CALL comprarF(documento,idProducto,cantidad,fecha);
+        SELECT "No hay suficientes productos";
     END IF;
+
 END$$
 
-DROP PROCEDURE IF EXISTS `comprarP`$$
-CREATE DEFINER=`root`@`localhost` PROCEDURE `comprarP` (IN `documento` VARCHAR(15), IN `idProducto` INT, IN `cantidad` INT)   BEGIN
+DROP PROCEDURE IF EXISTS `comprarProductoF`$$
+CREATE DEFINER=`root`@`localhost` PROCEDURE `comprarProductoF` (IN `documento` VARCHAR(15), IN `p_idProducto` INT, IN `p_cantidad` INT, `fecha` DATE)   BEGIN
+    DECLARE cantidadQH INT;
+    DECLARE factura_id INT;
 
     
-    IF EXISTS (SELECT 1 FROM Factura WHERE Cliente_idCliente = (SELECT idCliente FROM Cliente WHERE
-cedula = documento LIMIT 1) AND fecha = CURDATE() LIMIT 1) THEN
-INSERT INTO detalle(cantidad,precio,Factura_idFactura,Producto_idProducto) VALUES 
-(cantidad,(SELECT precio * cantidad FROM Producto WHERE idProducto = idProducto LIMIT 1),
-(SELECT idFactura FROM Factura WHERE Cliente_idCliente = (SELECT idCliente FROM Cliente WHERE
-cedula = documento LIMIT 1)),idProducto);
+    SELECT stock INTO cantidadQH 
+    FROM producto 
+    WHERE idProducto = p_idProducto;
+
+    
+    IF cantidadQH >= p_cantidad AND p_cantidad > 0 THEN
 
         
-        SELECT 'Compra realizada exitosamente' AS mensaje;
+        IF EXISTS (SELECT 1 FROM Factura WHERE Cliente_idCliente = (SELECT idCliente FROM Cliente 
+   WHERE cedula = documento LIMIT 1) AND fecha = fecha) THEN
 
-UPDATE producto SET stock = stock - cantidad WHERE producto.idProducto = idProducto LIMIT 1;
-    ELSE
+            INSERT INTO detalle(cantidad, precio, Factura_idFactura, Producto_idProducto) 
+            VALUES (p_cantidad, (SELECT precio * p_cantidad FROM Producto WHERE idProducto = p_idProducto 
+LIMIT 1), (SELECT idFactura FROM Factura WHERE Cliente_idCliente = 
+                    (SELECT idCliente FROM Cliente WHERE cedula = documento) 
+                    AND fecha = fecha),p_idProducto
+            );
+
+            
+            SELECT 'La factura con el ID proporcionado ya existe.' AS mensaje;
+
+            
+            UPDATE producto 
+            SET stock = stock - p_cantidad 
+            WHERE producto.idProducto = p_idProducto 
+            LIMIT 1;
+
+
+        ELSE
+            
+            INSERT INTO Factura (fecha, Cliente_idCliente)
+            VALUES (fecha, (SELECT idCliente FROM Cliente WHERE cedula = documento LIMIT 1));
+
+    SET factura_id = LAST_INSERT_ID();
+            
+            SELECT CONCAT(
+                'Su factura ha sido creada exitosamente. ', 
+                'Consulte la informaci b爏ica de su factura a continuaci: ', 
+                'Numero factura: ', factura_id
+            ) AS mensaje;
+
+            
+            INSERT INTO detalle(cantidad, precio, Factura_idFactura, Producto_idProducto) 
+            VALUES (p_cantidad, (SELECT precio * p_cantidad FROM Producto WHERE idProducto = p_idProducto LIMIT 1),
+                (SELECT idFactura FROM Factura WHERE Cliente_idCliente = 
+                (SELECT idCliente FROM Cliente WHERE cedula = documento) AND fecha = fecha),p_idProducto
+            );
+
+            
+            UPDATE producto 
+            SET stock = stock - p_cantidad 
+            WHERE producto.idProducto = p_idProducto 
+            LIMIT 1;
+
+        END IF;
+
+    ELSE 
         
-        INSERT INTO Factura (fecha,Cliente_idCliente)
-        VALUES (CURDATE(), (SELECT idCliente FROM Cliente WHERE
-cedula = documento LIMIT 1));
-        SELECT 'Factura creada exitosamente.' AS mensaje;
-CALL comprarP(documento,idProducto,cantidad);
+        SELECT "No hay suficientes productos";
     END IF;
+
 END$$
 
 DROP PROCEDURE IF EXISTS `generarFactura`$$
-CREATE DEFINER=`root`@`localhost` PROCEDURE `generarFactura` (IN `documento` VARCHAR(15), IN `fecha` DATE)   BEGIN
+CREATE DEFINER=`root`@`localhost` PROCEDURE `generarFactura` (IN `documento` VARCHAR(15), `fecha` DATE)   BEGIN
 
 IF EXISTS (SELECT 1 FROM Factura WHERE Cliente_idCliente = (SELECT idCliente FROM Cliente WHERE
 cedula = documento LIMIT 1) AND Factura.fecha = fecha) THEN
@@ -118,7 +210,8 @@ WHERE
     AND f.fecha = fecha;
 
 ELSE
-SELECT CONCAT('<<Neutech>> \n No existe una factura para el cliente con el Numero de documento: ', documento, ' fecha: ', fecha) AS mensaje;
+SELECT CONCAT('<<Neutech>> \n No existe una factura para el cliente con el Numero de documento: 
+', documento, ' fecha: ', fecha) AS mensaje;
 END IF;
 
 END$$
@@ -150,8 +243,8 @@ DROP PROCEDURE IF EXISTS `ProductosVendidosPorCategoria`$$
 CREATE DEFINER=`root`@`localhost` PROCEDURE `ProductosVendidosPorCategoria` (IN `categoria` VARCHAR(15))   BEGIN
     SELECT 
         p.idProducto,
-        p.nombreProducto AS productoUnitario,
-        p.precio,
+        p.nombreProducto, 
+        p.precio AS precioUnitario,
         c.nombreCategoria,
         d.cantidad,
         f.fecha
@@ -231,7 +324,7 @@ CREATE DEFINER=`root`@`localhost` PROCEDURE `Top5ProductosMasVendidos` ()   BEGI
 END$$
 
 DROP PROCEDURE IF EXISTS `verFacturas`$$
-CREATE DEFINER=`root`@`localhost` PROCEDURE `verFacturas` (IN `tipoDoc` VARCHAR(100))   BEGIN
+CREATE DEFINER=`root`@`localhost` PROCEDURE `verFacturas` (IN `tipoDoc` VARCHAR(15))   BEGIN
 SELECT * FROM factura WHERE Cliente_idCliente = ( 
     SELECT idCliente FROM cliente WHERE cedula = tipoDoc 
 )
@@ -331,7 +424,7 @@ CREATE TABLE IF NOT EXISTS `detalle` (
   PRIMARY KEY (`idDetalle`,`Factura_idFactura`,`Producto_idProducto`),
   KEY `fk_Detalle_Factura1_idx` (`Factura_idFactura`),
   KEY `fk_Detalle_Producto1_idx` (`Producto_idProducto`)
-) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=23 DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
 
 --
 -- Volcado de datos para la tabla `detalle`
@@ -343,7 +436,22 @@ INSERT INTO `detalle` (`idDetalle`, `cantidad`, `precio`, `Factura_idFactura`, `
 (3, 2, 680000, 12, 2),
 (4, 8, 2720000, 12, 3),
 (5, 1, 340000, 12, 3),
-(6, 2, 680000, 13, 1);
+(6, 2, 680000, 13, 1),
+(7, 8, 2720000, 18, 3),
+(8, 8, 2720000, 20, 3),
+(9, 8, 2720000, 20, 3),
+(10, 2, 680000, 21, 25),
+(11, 4, 1360000, 21, 25),
+(12, 4, 1360000, 22, 1),
+(13, 4, 1360000, 22, 2),
+(14, 4, 1360000, 23, 2),
+(15, 2, 680000, 24, 24),
+(16, 2, 680000, 24, 24),
+(17, 2, 680000, 25, 4),
+(18, 3, 1020000, 25, 4),
+(19, 2, 680000, 26, 5),
+(20, 3, 1020000, 26, 5),
+(21, 3, 1020000, 27, 1);
 
 -- --------------------------------------------------------
 
@@ -358,7 +466,7 @@ CREATE TABLE IF NOT EXISTS `factura` (
   `Cliente_idCliente` int(11) NOT NULL,
   PRIMARY KEY (`idFactura`,`Cliente_idCliente`),
   KEY `fk_Factura_Cliente1_idx` (`Cliente_idCliente`)
-) ENGINE=InnoDB AUTO_INCREMENT=16 DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=29 DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
 
 --
 -- Volcado de datos para la tabla `factura`
@@ -377,7 +485,20 @@ INSERT INTO `factura` (`idFactura`, `fecha`, `Cliente_idCliente`) VALUES
 (12, '2024-08-19', 6),
 (13, '2024-07-12', 4),
 (14, '2024-08-30', 12),
-(15, '2024-08-30', 6);
+(15, '2024-08-30', 6),
+(16, '2024-09-02', 12),
+(17, '2024-09-02', 6),
+(18, '2024-09-02', 14),
+(19, '2024-09-02', 18),
+(20, '2024-09-02', 19),
+(21, '2024-09-02', 15),
+(22, '2024-09-02', 3),
+(23, '2024-09-02', 13),
+(24, '2024-09-02', 8),
+(25, '2024-09-02', 9),
+(26, '2020-01-01', 7),
+(27, '2024-09-02', 16),
+(28, '2024-09-02', 11);
 
 -- --------------------------------------------------------
 
@@ -454,50 +575,50 @@ CREATE TABLE IF NOT EXISTS `producto` (
 --
 
 INSERT INTO `producto` (`idProducto`, `nombreProducto`, `descripcion`, `precio`, `stock`, `Marca_idMarca`, `Categoria_idCategoria`) VALUES
-(1, 'Corsair Vengeance 16GB', 'Memoria RAM DDR4 16GB 3200MHz', 340000, 7, 1, 1),
-(2, 'G.Skill Ripjaws V 16GB', 'Memoria RAM DDR4 16GB 3600MHz', 360000, 10, 2, 1),
-(3, 'Seagate Barracuda 1TB', 'Disco Duro HDD 1TB 7200RPM', 210000, 9, 6, 2),
-(4, 'Western Digital Blue 500GB', 'Disco Duro HDD 500GB 7200RPM', 170000, 10, 7, 2),
-(5, 'NVIDIA GeForce GTX 1660', 'Tarjeta Gr谩fica 6GB GDDR5', 880000, 10, 11, 3),
-(6, 'MSI Gaming X RTX 3060', 'Tarjeta Gr谩fica 12GB GDDR6', 1400000, 10, 12, 3),
-(7, 'ASUS ROG Strix B550-F', 'Placa Base ATX B550', 720000, 10, 14, 4),
-(8, 'Gigabyte Z490 AORUS', 'Placa Base ATX Z490', 800000, 10, 13, 4),
-(9, 'Corsair RM750x', 'Fuente de Alimentaci贸n 750W 80+ Gold', 480000, 10, 1, 5),
-(10, 'Seasonic FOCUS GX-650', 'Fuente de Alimentaci贸n 650W 80+ Gold', 440000, 10, 20, 5),
-(11, 'Intel Core i5-12600K', 'Procesador 6 n煤cleos 12 hilos 3.7GHz', 1200000, 10, 21, 6),
-(12, 'AMD Ryzen 5 5600X', 'Procesador 6 n煤cleos 12 hilos 3.7GHz', 1100000, 10, 22, 6),
-(13, 'Noctua NH-U12S', 'Refrigeraci贸n por aire 120mm', 280000, 10, 23, 7),
-(14, 'Cooler Master Hyper 212', 'Refrigeraci贸n por aire 120mm', 200000, 10, 18, 7),
-(15, 'NZXT H510', 'Caja ATX con paneles templados', 400000, 10, 25, 8),
-(16, 'Fractal Design Meshify C', 'Caja ATX con excelente ventilaci贸n', 360000, 10, 26, 8),
-(17, 'Razer BlackWidow V3', 'Teclado mec谩nico RGB', 520000, 10, 27, 9),
-(18, 'Logitech G Pro X', 'Teclado mec谩nico compacto', 460000, 10, 28, 9),
-(19, 'Logitech G502 Hero', 'Mouse gaming con 16,000 DPI', 320000, 10, 28, 10),
-(20, 'Razer DeathAdder V2', 'Mouse gaming ergon贸mico', 300000, 10, 27, 10),
-(21, 'ASUS VG248QE', 'Monitor 24\" 144Hz Full HD', 880000, 10, 14, 11),
-(22, 'Dell UltraSharp U2719D', 'Monitor 27\" QHD IPS', 1400000, 10, 15, 11),
-(23, 'Kingston HyperX Fury 8GB', 'Memoria RAM DDR4 8GB 2666MHz', 160000, 10, 3, 1),
-(24, 'Crucial Ballistix 8GB', 'Memoria RAM DDR4 8GB 3200MHz', 180000, 10, 4, 1),
-(25, 'ADATA HD710 Pro 1TB', 'Disco Duro HDD 1TB 5400RPM', 230000, 10, 5, 2),
-(26, 'Toshiba Canvio Basics 2TB', 'Disco Duro HDD 2TB 5400RPM', 290000, 10, 10, 2),
-(27, 'ASUS TUF Gaming RTX 3070', 'Tarjeta Gr谩fica 8GB GDDR6', 1600000, 10, 14, 3),
-(28, 'Gigabyte Radeon RX 6700 XT', 'Tarjeta Gr谩fica 12GB GDDR6', 1750000, 10, 13, 3),
-(29, 'MSI MAG B550 TOMAHAWK', 'Placa Base ATX B550', 650000, 10, 12, 4),
-(30, 'ASRock B560M Pro4', 'Placa Base Micro-ATX B560', 550000, 10, 15, 4),
-(31, 'Thermaltake Toughpower GF1 750W', 'Fuente de Alimentaci贸n 750W 80+ Gold', 470000, 10, 19, 5),
-(32, 'Be Quiet! Straight Power 11 650W', 'Fuente de Alimentaci贸n 650W 80+ Platinum', 500000, 10, 24, 5),
-(33, 'AMD Ryzen 7 5800X', 'Procesador 8 n煤cleos 16 hilos 3.8GHz', 1600000, 10, 22, 6),
-(34, 'Intel Core i7-12700K', 'Procesador 12 n煤cleos 20 hilos 3.6GHz', 1500000, 10, 21, 6),
-(35, 'Cooler Master Hyper 212 Black Edition', 'Refrigeraci贸n por aire 120mm', 220000, 10, 18, 7),
-(36, 'Be Quiet! Dark Rock 4', 'Refrigeraci贸n por aire 135mm', 350000, 10, 24, 7),
-(37, 'Fractal Design Define 7', 'Caja ATX silenciosa', 600000, 10, 26, 8),
-(38, 'Cooler Master HAF XB EVO', 'Caja ATX con excelente ventilaci贸n', 550000, 10, 18, 8),
-(39, 'Corsair K95 RGB Platinum', 'Teclado mec谩nico con retroiluminaci贸n RGB', 700000, 10, 1, 9),
-(40, 'Ducky One 2 Mini', 'Teclado mec谩nico compacto con retroiluminaci贸n RGB', 450000, 10, 2, 9),
-(41, 'Razer Viper Ultimate', 'Mouse inal谩mbrico con 20,000 DPI', 350000, 10, 27, 10),
-(42, 'SteelSeries Rival 600', 'Mouse gaming con sensor dual', 320000, 10, 29, 10),
-(43, 'AOC 24G2', 'Monitor 24\" 144Hz Full HD', 500000, 10, 14, 11),
-(44, 'HP Omen X 27', 'Monitor 27\" 240Hz QHD', 1200000, 10, 15, 11);
+(1, 'Corsair Vengeance 16GB', 'Memoria RAM DDR4 16GB 3200MHz', 340000, 92, 1, 1),
+(2, 'G.Skill Ripjaws V 16GB', 'Memoria RAM DDR4 16GB 3600MHz', 360000, 92, 2, 1),
+(3, 'Seagate Barracuda 1TB', 'Disco Duro HDD 1TB 7200RPM', 210000, 100, 6, 2),
+(4, 'Western Digital Blue 500GB', 'Disco Duro HDD 500GB 7200RPM', 170000, 95, 7, 2),
+(5, 'NVIDIA GeForce GTX 1660', 'Tarjeta Gr谩fica 6GB GDDR5', 880000, 95, 11, 3),
+(6, 'MSI Gaming X RTX 3060', 'Tarjeta Gr谩fica 12GB GDDR6', 1400000, 100, 12, 3),
+(7, 'ASUS ROG Strix B550-F', 'Placa Base ATX B550', 720000, 100, 14, 4),
+(8, 'Gigabyte Z490 AORUS', 'Placa Base ATX Z490', 800000, 100, 13, 4),
+(9, 'Corsair RM750x', 'Fuente de Alimentaci贸n 750W 80+ Gold', 480000, 100, 1, 5),
+(10, 'Seasonic FOCUS GX-650', 'Fuente de Alimentaci贸n 650W 80+ Gold', 440000, 100, 20, 5),
+(11, 'Intel Core i5-12600K', 'Procesador 6 n煤cleos 12 hilos 3.7GHz', 1200000, 100, 21, 6),
+(12, 'AMD Ryzen 5 5600X', 'Procesador 6 n煤cleos 12 hilos 3.7GHz', 1100000, 100, 22, 6),
+(13, 'Noctua NH-U12S', 'Refrigeraci贸n por aire 120mm', 280000, 100, 23, 7),
+(14, 'Cooler Master Hyper 212', 'Refrigeraci贸n por aire 120mm', 200000, 100, 18, 7),
+(15, 'NZXT H510', 'Caja ATX con paneles templados', 400000, 100, 25, 8),
+(16, 'Fractal Design Meshify C', 'Caja ATX con excelente ventilaci贸n', 360000, 100, 26, 8),
+(17, 'Razer BlackWidow V3', 'Teclado mec谩nico RGB', 520000, 100, 27, 9),
+(18, 'Logitech G Pro X', 'Teclado mec谩nico compacto', 460000, 100, 28, 9),
+(19, 'Logitech G502 Hero', 'Mouse gaming con 16,000 DPI', 320000, 100, 28, 10),
+(20, 'Razer DeathAdder V2', 'Mouse gaming ergon贸mico', 300000, 100, 27, 10),
+(21, 'ASUS VG248QE', 'Monitor 24\" 144Hz Full HD', 880000, 100, 14, 11),
+(22, 'Dell UltraSharp U2719D', 'Monitor 27\" QHD IPS', 1400000, 100, 15, 11),
+(23, 'Kingston HyperX Fury 8GB', 'Memoria RAM DDR4 8GB 2666MHz', 160000, 100, 3, 1),
+(24, 'Crucial Ballistix 8GB', 'Memoria RAM DDR4 8GB 3200MHz', 180000, 98, 4, 1),
+(25, 'ADATA HD710 Pro 1TB', 'Disco Duro HDD 1TB 5400RPM', 230000, 100, 5, 2),
+(26, 'Toshiba Canvio Basics 2TB', 'Disco Duro HDD 2TB 5400RPM', 290000, 100, 10, 2),
+(27, 'ASUS TUF Gaming RTX 3070', 'Tarjeta Gr谩fica 8GB GDDR6', 1600000, 100, 14, 3),
+(28, 'Gigabyte Radeon RX 6700 XT', 'Tarjeta Gr谩fica 12GB GDDR6', 1750000, 100, 13, 3),
+(29, 'MSI MAG B550 TOMAHAWK', 'Placa Base ATX B550', 650000, 100, 12, 4),
+(30, 'ASRock B560M Pro4', 'Placa Base Micro-ATX B560', 550000, 100, 15, 4),
+(31, 'Thermaltake Toughpower GF1 750W', 'Fuente de Alimentaci贸n 750W 80+ Gold', 470000, 100, 19, 5),
+(32, 'Be Quiet! Straight Power 11 650W', 'Fuente de Alimentaci贸n 650W 80+ Platinum', 500000, 100, 24, 5),
+(33, 'AMD Ryzen 7 5800X', 'Procesador 8 n煤cleos 16 hilos 3.8GHz', 1600000, 100, 22, 6),
+(34, 'Intel Core i7-12700K', 'Procesador 12 n煤cleos 20 hilos 3.6GHz', 1500000, 100, 21, 6),
+(35, 'Cooler Master Hyper 212 Black Edition', 'Refrigeraci贸n por aire 120mm', 220000, 100, 18, 7),
+(36, 'Be Quiet! Dark Rock 4', 'Refrigeraci贸n por aire 135mm', 350000, 100, 24, 7),
+(37, 'Fractal Design Define 7', 'Caja ATX silenciosa', 600000, 100, 26, 8),
+(38, 'Cooler Master HAF XB EVO', 'Caja ATX con excelente ventilaci贸n', 550000, 100, 18, 8),
+(39, 'Corsair K95 RGB Platinum', 'Teclado mec谩nico con retroiluminaci贸n RGB', 700000, 100, 1, 9),
+(40, 'Ducky One 2 Mini', 'Teclado mec谩nico compacto con retroiluminaci贸n RGB', 450000, 100, 2, 9),
+(41, 'Razer Viper Ultimate', 'Mouse inal谩mbrico con 20,000 DPI', 350000, 100, 27, 10),
+(42, 'SteelSeries Rival 600', 'Mouse gaming con sensor dual', 320000, 100, 29, 10),
+(43, 'AOC 24G2', 'Monitor 24\" 144Hz Full HD', 500000, 100, 14, 11),
+(44, 'HP Omen X 27', 'Monitor 27\" 240Hz QHD', 1200000, 100, 15, 11);
 
 -- --------------------------------------------------------
 
@@ -552,236 +673,7 @@ ALTER TABLE `producto`
   ADD CONSTRAINT `fk_Producto_Categoria1` FOREIGN KEY (`Categoria_idCategoria`) REFERENCES `categoria` (`idCategoria`) ON DELETE NO ACTION ON UPDATE NO ACTION,
   ADD CONSTRAINT `fk_Producto_Marca1` FOREIGN KEY (`Marca_idMarca`) REFERENCES `marca` (`idMarca`) ON DELETE NO ACTION ON UPDATE NO ACTION;
 COMMIT;
--- Procesos
 
-DELIMITER $$
-CREATE PROCEDURE comprarP(IN documento VARCHAR(15), idProducto INT, cantidad INT)
-BEGIN
-	
-    IF EXISTS (SELECT 1 FROM Factura WHERE Cliente_idCliente = (SELECT idCliente FROM Cliente WHERE
-	cedula = documento LIMIT 1) AND fecha = CURDATE() LIMIT 1) THEN
-	INSERT INTO detalle(cantidad,precio,Factura_idFactura,Producto_idProducto) VALUES 
-	(cantidad,(SELECT precio * cantidad FROM Producto WHERE idProducto = idProducto LIMIT 1),
-	(SELECT idFactura FROM Factura WHERE Cliente_idCliente = (SELECT idCliente FROM Cliente WHERE
-	cedula = documento LIMIT 1)),idProducto);
-
-        SELECT 'La factura con el ID proporcionado ya existe.' AS mensaje;
-
-	UPDATE producto SET stock = stock - cantidad WHERE producto.idProducto = idProducto LIMIT 1;
-    ELSE
-        INSERT INTO Factura (fecha,Cliente_idCliente)
-        VALUES (CURDATE(), (SELECT idCliente FROM Cliente WHERE
-	cedula = documento LIMIT 1));
-        SELECT 'Factura creada exitosamente.' AS mensaje;
-	CALL comprarP(documento,idProducto,cantidad);
-    END IF;
-END$$
-DELIMITER ;
-
-DELIMITER $$
-CREATE PROCEDURE comprarF(IN documento VARCHAR(15), idProducto INT, cantidad INT)
-BEGIN
-	
-    -- Verifica si existe una factura con el ID proporcionado
-    IF EXISTS (SELECT 1 FROM Factura WHERE Cliente_idCliente = (SELECT idCliente FROM Cliente WHERE
-	cedula = documento LIMIT 1) AND fecha = fecha LIMIT 1) THEN
-	INSERT INTO detalle(cantidad,precio,Factura_idFactura,Producto_idProducto) VALUES 
-	(cantidad,(SELECT precio * cantidad FROM Producto WHERE idProducto = idProducto LIMIT 1),
-	(SELECT idFactura FROM Factura WHERE Cliente_idCliente = (SELECT idCliente FROM Cliente WHERE
-	cedula = documento LIMIT 1)),idProducto);
-
- 
-        SELECT 'La factura con el ID proporcionado ya existe.' AS mensaje;
-	UPDATE producto SET stock = stock - cantidad WHERE producto.idProducto = idProducto LIMIT 1;
-    ELSE
-      
-        INSERT INTO Factura (fecha,Cliente_idCliente)
-        VALUES (CURDATE(), (SELECT idCliente FROM Cliente WHERE
-	cedula = documento LIMIT 1));
-        SELECT 'Factura creada exitosamente.' AS mensaje;
-	CALL comprarF(documento,idProducto,cantidad);
-    END IF;
-END$$
-DELIMITER ;
-
-DELIMITER $$
-CREATE PROCEDURE generarFactura(IN documento VARCHAR(15), fecha DATE)
-BEGIN
-	IF EXISTS (SELECT 1 FROM Factura WHERE Cliente_idCliente = (SELECT idCliente FROM Cliente WHERE
-	cedula = documento LIMIT 1) AND Factura.fecha = fecha) THEN
-	
-	SELECT '<<Neutech>>' AS Nombre Empresa;
-	SELECT CONCAT('Cliente: ', nombres, ' ', apellidos, '\nDocumento: ', cedula, '\nCorreo: ', correo, '\nTelefono: ', telefono) AS Datos del Cliente
-	FROM Cliente WHERE cedula = documento;
-
-	SELECT idFactura, fecha FROM Factura WHERE Cliente_idCliente = (SELECT idCliente FROM Cliente WHERE
-	cedula = documento LIMIT 1) AND Factura.fecha = fecha;
-	SELECT 
-    	p.nombreProducto,
-    	p.descripcion,
-    	d.cantidad,
-    	d.precio AS precio_unitario
-	FROM 
-    	Cliente c
-	JOIN 
-    	Factura f ON c.idCliente = f.Cliente_idCliente
-	JOIN 
-    	Detalle d ON f.idFactura = d.Factura_idFactura
-	JOIN 
-    	Producto p ON d.Producto_idProducto = p.idProducto
-	WHERE 
-    	c.cedula = documento
-    	AND f.fecha = fecha;
-	SELECT 
-    	SUM(d.precio) AS total_factura
-	FROM 
-    	Cliente c
-	JOIN 
-    	Factura f ON c.idCliente = f.Cliente_idCliente
-	JOIN 
-    	Detalle d ON f.idFactura = d.Factura_idFactura
-	WHERE 
-    	c.cedula = documento
-    	AND f.fecha = fecha;
-	
-	ELSE
-	SELECT CONCAT('<<Neutech>> \n No existe una factura para el cliente con el Numero de documento: ', documento, ' fecha: ', fecha) AS mensaje;
-	END IF;
-END$$
-DELIMITER ;
-
-
-DELIMITER $$
-
-CREATE PROCEDURE MejoresCompradores()
-BEGIN
-
-SELECT 
-    c.idCliente,
-    c.nombres,
-    c.apellidos,
-    COUNT(f.idFactura) AS numeroCompras,
-    SUM(d.cantidad * p.precio) AS totalGastado
-FROM 
-    Cliente c
-INNER JOIN 
-    Factura f ON c.idCliente = f.Cliente_idCliente
-INNER JOIN 
-    Detalle d ON f.idFactura = d.Factura_idFactura
-INNER JOIN 
-    Producto p ON d.producto_idProducto = p.idProducto
-GROUP BY 
-    c.idCliente, c.nombres, c.apellidos
-ORDER BY 
-    totalGastado DESC;
-END$$
-
-DELIMITER ;
-
-
-DELIMITER $$
-
-CREATE PROCEDURE ProductosVendidosPorCategoria(IN categoria VARCHAR(15))
-BEGIN
-    SELECT 
-        p.idProducto,
-        p.nombreProducto, 
-        p.precio AS precioUnitario,
-        c.nombreCategoria,
-        d.cantidad,
-        f.fecha
-    FROM 
-        Producto p
-    INNER JOIN 
-        Categoria c ON p.categoria_idCategoria = c.idCategoria
-    INNER JOIN 
-        Detalle d ON p.idProducto = d.producto_idProducto
-    INNER JOIN 
-        Factura f ON d.Factura_idFactura = f.idFactura
-    WHERE 
-        c.nombreCategoria = categoria;
-END$$
-
-DELIMITER ;
-
-DELIMITER $$
-
-CREATE PROCEDURE ProductosVendidosPorFecha(IN fechaVenta DATE)
-BEGIN
-    DECLARE totalVentas INT;
-
-    SELECT 
-        COUNT(*) INTO totalVentas
-    FROM 
-        Factura f
-    WHERE 
-        f.fecha = fechaVenta;
-    IF totalVentas = 0 THEN
-        SELECT 'No hay productos vendidos en la fecha ingresada' AS mensaje;
-    ELSE
-
-        SELECT 
-            p.idProducto,
-            p.nombreProducto, 
-            p.precio AS precioUnitario,
-            c.nombreCategoria,
-            d.cantidad,
-            f.fecha,
-            (p.precio * d.cantidad) AS ganancia
-        FROM 
-            Producto p
-        INNER JOIN 
-            Categoria c ON p.categoria_idCategoria = c.idCategoria
-        INNER JOIN 
-            Detalle d ON p.idProducto = d.producto_idProducto
-        INNER JOIN 
-            Factura f ON d.Factura_idFactura = f.idFactura
-        WHERE 
-            f.fecha = fechaVenta;
-        SELECT 
-            SUM(d.cantidad) AS totalProductosVendidos,
-            SUM(p.precio * d.cantidad) AS gananciaTotal
-        FROM 
-            Producto p
-        INNER JOIN 
-            Detalle d ON p.idProducto = d.producto_idProducto
-        INNER JOIN 
-            Factura f ON d.Factura_idFactura = f.idFactura
-        WHERE 
-            f.fecha = fechaVenta;
-    END IF;
-END$$
-
-DELIMITER ;
-
-DELIMITER $$
-
-CREATE PROCEDURE Top5ProductosMasVendidos()
-BEGIN
-    SELECT 
-        p.idProducto,
-        p.nombreProducto,
-        SUM(d.cantidad) AS cantidadTotalVendida
-    FROM 
-        Producto p
-    INNER JOIN 
-        Detalle d ON p.idProducto = d.producto_idProducto
-    GROUP BY 
-        p.idProducto, p.nombreProducto
-    ORDER BY 
-        cantidadTotalVendida DESC
-    LIMIT 5;
-END$$
-
-DELIMITER ;
-
-
-DELIMITER $$
-
-CREATE PROCEDURE verFacturas()
-    
-BEGIN
-SELECT * FROM factura WHERE Cliente_idCliente = ( 
-    SELECT idCliente FROM cliente WHERE cedula = tipoDoc);
-END$$
-DELIMITER ;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;

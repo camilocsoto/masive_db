@@ -1,0 +1,353 @@
+///ComprarProducto actual
+DELIMITER $$
+CREATE PROCEDURE comprarProducto(IN documento VARCHAR(15), IN p_idProducto INT, IN p_cantidad INT)
+BEGIN
+    DECLARE cantidadQH INT;
+    DECLARE factura_id INT;
+
+    -- Usa un alias para evitar conflicto de nombres
+    SELECT stock INTO cantidadQH 
+    FROM producto 
+    WHERE idProducto = p_idProducto;
+
+    -- Agregar bloques BEGIN y END para el IF
+    IF cantidadQH >= p_cantidad AND p_cantidad > 0 THEN
+
+        -- Verifica si existe una factura con el ID proporcionado
+        IF EXISTS (SELECT 1 FROM Factura WHERE Cliente_idCliente = (SELECT idCliente FROM Cliente 
+				   WHERE cedula = documento LIMIT 1) AND fecha = CURDATE()) THEN
+			-- Si existe, inserta el detalle y actualiza el stock
+            INSERT INTO detalle(cantidad, precio, Factura_idFactura, Producto_idProducto) 
+            VALUES (p_cantidad, (SELECT precio * p_cantidad FROM Producto WHERE idProducto = p_idProducto 
+					LIMIT 1), (SELECT idFactura FROM Factura WHERE Cliente_idCliente = 
+                    (SELECT idCliente FROM Cliente WHERE cedula = documento) 
+                    AND fecha = CURDATE()),p_idProducto
+            );
+
+            -- Mensaje de confirmación
+            SELECT 'La factura con el ID proporcionado ya existe.' AS mensaje;
+
+            -- Actualizar cantidad de los productos
+            UPDATE producto 
+            SET stock = stock - p_cantidad 
+            WHERE producto.idProducto = p_idProducto 
+            LIMIT 1;
+
+
+        ELSE
+            -- Si no existe, crea una nueva factura
+            INSERT INTO Factura (fecha, Cliente_idCliente)
+            VALUES (CURDATE(), (SELECT idCliente FROM Cliente WHERE cedula = documento LIMIT 1));
+		
+	    SET factura_id = LAST_INSERT_ID();
+            -- Mensaje de confirmación
+            SELECT CONCAT(
+                'Su factura ha sido creada exitosamente. ', 
+                'Consulte la información básica de su factura a continuación: ', 
+                'Numero factura: ', factura_id
+            ) AS mensaje;
+
+            -- Crea el detalle
+            INSERT INTO detalle(cantidad, precio, Factura_idFactura, Producto_idProducto) 
+            VALUES (p_cantidad, (SELECT precio * p_cantidad FROM Producto WHERE idProducto = p_idProducto LIMIT 1),
+                (SELECT idFactura FROM Factura WHERE Cliente_idCliente = 
+                (SELECT idCliente FROM Cliente WHERE cedula = documento) AND fecha = CURDATE()),p_idProducto
+            );
+
+            -- Actualizar el stock del producto
+            UPDATE producto 
+            SET stock = stock - p_cantidad 
+            WHERE producto.idProducto = p_idProducto 
+            LIMIT 1;
+
+        END IF;
+
+    ELSE 
+        -- Mensaje de stock insuficiente en la tabla prodcutos
+        SELECT "No hay suficientes productos";
+    END IF;
+
+END$$
+DELIMITER ;
+
+Comprar producto fecha
+/////////////////////////////
+DELIMITER $$
+CREATE PROCEDURE comprarProductoF(IN documento VARCHAR(15), IN p_idProducto INT, IN p_cantidad INT,fecha DATE)
+BEGIN
+    DECLARE cantidadQH INT;
+    DECLARE factura_id INT;
+
+    -- Usa un alias para evitar conflicto de nombres
+    SELECT stock INTO cantidadQH 
+    FROM producto 
+    WHERE idProducto = p_idProducto;
+
+    -- Agregar bloques BEGIN y END para el IF
+    IF cantidadQH >= p_cantidad AND p_cantidad > 0 THEN
+
+        -- Verifica si existe una factura con el ID proporcionado
+        IF EXISTS (SELECT 1 FROM Factura WHERE Cliente_idCliente = (SELECT idCliente FROM Cliente 
+				   WHERE cedula = documento LIMIT 1) AND fecha = fecha) THEN
+			-- Si existe, inserta el detalle y actualiza el stock
+            INSERT INTO detalle(cantidad, precio, Factura_idFactura, Producto_idProducto) 
+            VALUES (p_cantidad, (SELECT precio * p_cantidad FROM Producto WHERE idProducto = p_idProducto 
+					LIMIT 1), (SELECT idFactura FROM Factura WHERE Cliente_idCliente = 
+                    (SELECT idCliente FROM Cliente WHERE cedula = documento) 
+                    AND fecha = fecha),p_idProducto
+            );
+
+            -- Mensaje de confirmación
+            SELECT 'La factura con el ID proporcionado ya existe.' AS mensaje;
+
+            -- Actualizar cantidad de los productos
+            UPDATE producto 
+            SET stock = stock - p_cantidad 
+            WHERE producto.idProducto = p_idProducto 
+            LIMIT 1;
+
+
+        ELSE
+            -- Si no existe, crea una nueva factura
+            INSERT INTO Factura (fecha, Cliente_idCliente)
+            VALUES (fecha, (SELECT idCliente FROM Cliente WHERE cedula = documento LIMIT 1));
+		
+	    SET factura_id = LAST_INSERT_ID();
+            -- Mensaje de confirmación
+            SELECT CONCAT(
+                'Su factura ha sido creada exitosamente. ', 
+                'Consulte la información básica de su factura a continuación: ', 
+                'Numero factura: ', factura_id
+            ) AS mensaje;
+
+            -- Crea el detalle
+            INSERT INTO detalle(cantidad, precio, Factura_idFactura, Producto_idProducto) 
+            VALUES (p_cantidad, (SELECT precio * p_cantidad FROM Producto WHERE idProducto = p_idProducto LIMIT 1),
+                (SELECT idFactura FROM Factura WHERE Cliente_idCliente = 
+                (SELECT idCliente FROM Cliente WHERE cedula = documento) AND fecha = fecha),p_idProducto
+            );
+
+            -- Actualizar el stock del producto
+            UPDATE producto 
+            SET stock = stock - p_cantidad 
+            WHERE producto.idProducto = p_idProducto 
+            LIMIT 1;
+
+        END IF;
+
+    ELSE 
+        -- Mensaje de stock insuficiente en la tabla prodcutos
+        SELECT "No hay suficientes productos";
+    END IF;
+
+END$$
+DELIMITER ;
+
+//////////////////////////////////////////////
+//GENERAR FACTURA
+DELIMITER $$
+CREATE PROCEDURE generarFactura(IN documento VARCHAR(15), fecha DATE)
+BEGIN
+	
+	IF EXISTS (SELECT 1 FROM Factura WHERE Cliente_idCliente = (SELECT idCliente FROM Cliente WHERE
+cedula = documento LIMIT 1) AND Factura.fecha = fecha) THEN
+
+SELECT '<<Neutech>>' AS Empresa;
+SELECT CONCAT('Cliente: ', nombres, ' ', apellidos, '\r\nDocumento: ', cedula, '\r\nCorreo: ', correo, '\r\nTelefono: ', telefono) AS Cliente
+FROM Cliente WHERE cedula = documento;
+
+SELECT idFactura, fecha FROM Factura WHERE Cliente_idCliente = (SELECT idCliente FROM Cliente WHERE
+cedula = documento LIMIT 1) AND Factura.fecha = fecha;
+
+
+SELECT 
+    p.nombreProducto,
+    p.descripcion,
+    d.cantidad,
+    d.precio AS precio_unitario
+FROM 
+    Cliente c
+JOIN 
+    Factura f ON c.idCliente = f.Cliente_idCliente
+JOIN 
+    Detalle d ON f.idFactura = d.Factura_idFactura
+JOIN 
+    Producto p ON d.Producto_idProducto = p.idProducto
+WHERE 
+    c.cedula = documento
+    AND f.fecha = fecha;
+SELECT 
+    SUM(d.precio) AS subtotal,
+    '19%' AS iva,
+    SUM(d.precio) * 0.19 + SUM(d.precio) AS total_factura
+FROM 
+    Cliente c
+JOIN 
+    Factura f ON c.idCliente = f.Cliente_idCliente
+JOIN 
+    Detalle d ON f.idFactura = d.Factura_idFactura
+WHERE 
+    c.cedula = documento
+    AND f.fecha = fecha;
+
+ELSE
+SELECT CONCAT('<<Neutech>> \n No existe una factura para el cliente con el Numero de documento: 
+', documento, ' fecha: ', fecha) AS mensaje;
+END IF;
+
+END$$
+DELIMITER ;
+//////////////////////////////////////
+
+Productos vendidos por categoria
+
+//
+DELIMITER $$
+
+CREATE PROCEDURE ProductosVendidosPorCategoria(IN categoria VARCHAR(15))
+BEGIN
+    SELECT 
+        p.idProducto,
+        p.nombreProducto, 
+        p.precio AS precioUnitario,
+        c.nombreCategoria,
+        d.cantidad,
+        f.fecha
+    FROM 
+        Producto p
+    INNER JOIN 
+        Categoria c ON p.categoria_idCategoria = c.idCategoria
+    INNER JOIN 
+        Detalle d ON p.idProducto = d.producto_idProducto
+    INNER JOIN 
+        Factura f ON d.Factura_idFactura = f.idFactura
+    WHERE 
+        c.nombreCategoria = categoria;
+END$$
+
+DELIMITER ;
+
+///////////////////////////////////////
+
+
+CALL ProductosVendidosPorFecha('2024-08-28');
+/////////////////////////////////////////////////////////
+Productos vendidos por fecha
+
+DELIMITER $$
+
+CREATE PROCEDURE ProductosVendidosPorFecha(IN fechaVenta DATE)
+BEGIN
+    DECLARE totalVentas INT;
+
+    SELECT 
+        COUNT(*) INTO totalVentas
+    FROM 
+        Factura f
+    WHERE 
+        f.fecha = fechaVenta;
+    IF totalVentas = 0 THEN
+        SELECT 'No hay productos vendidos en la fecha ingresada' AS mensaje;
+    ELSE
+
+        SELECT 
+            p.idProducto,
+            p.nombreProducto, 
+            p.precio AS precioUnitario,
+            c.nombreCategoria,
+            d.cantidad,
+            f.fecha,
+            (p.precio * d.cantidad) AS ganancia
+        FROM 
+            Producto p
+        INNER JOIN 
+            Categoria c ON p.categoria_idCategoria = c.idCategoria
+        INNER JOIN 
+            Detalle d ON p.idProducto = d.producto_idProducto
+        INNER JOIN 
+            Factura f ON d.Factura_idFactura = f.idFactura
+        WHERE 
+            f.fecha = fechaVenta;
+        SELECT 
+            SUM(d.cantidad) AS totalProductosVendidos,
+            SUM(p.precio * d.cantidad) AS gananciaTotal
+        FROM 
+            Producto p
+        INNER JOIN 
+            Detalle d ON p.idProducto = d.producto_idProducto
+        INNER JOIN 
+            Factura f ON d.Factura_idFactura = f.idFactura
+        WHERE 
+            f.fecha = fechaVenta;
+    END IF;
+END$$
+
+DELIMITER ;
+
+/////////////////////////////////////////
+Top productos mas vendidos
+DELIMITER $$
+
+CREATE PROCEDURE Top5ProductosMasVendidos()
+BEGIN
+    SELECT 
+        p.idProducto,
+        p.nombreProducto,
+        SUM(d.cantidad) AS cantidadTotalVendida
+    FROM 
+        Producto p
+    INNER JOIN 
+        Detalle d ON p.idProducto = d.producto_idProducto
+    GROUP BY 
+        p.idProducto, p.nombreProducto
+    ORDER BY 
+        cantidadTotalVendida DESC
+    LIMIT 5;
+END$$
+
+DELIMITER ;
+
+
+CALL Top5ProductosMasVendidos();
+//////////////////////////////////////////////
+Los mejores clientes
+DELIMITER $$
+
+CREATE PROCEDURE MejoresCompradores()
+BEGIN
+
+SELECT 
+    c.idCliente,
+    c.nombres,
+    c.apellidos,
+    COUNT(f.idFactura) AS numeroCompras,
+    SUM(d.cantidad * p.precio) AS totalGastado
+FROM 
+    Cliente c
+INNER JOIN 
+    Factura f ON c.idCliente = f.Cliente_idCliente
+INNER JOIN 
+    Detalle d ON f.idFactura = d.Factura_idFactura
+INNER JOIN 
+    Producto p ON d.producto_idProducto = p.idProducto
+GROUP BY 
+    c.idCliente, c.nombres, c.apellidos
+ORDER BY 
+    totalGastado DESC;
+END$$
+
+DELIMITER ;
+////////////////////
+Ver facturas por numero de documento
+DELIMITER $$
+
+CREATE PROCEDURE verFacturas(IN tipoDoc VARCHAR(15))
+
+BEGIN
+	SELECT * FROM factura WHERE Cliente_idCliente = ( 
+    SELECT idCliente FROM cliente WHERE cedula = tipoDoc 
+	)
+	;
+END$$
+
+DELIMITER ;
